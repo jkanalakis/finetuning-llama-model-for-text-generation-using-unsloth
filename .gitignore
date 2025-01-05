@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# Environment Files
+.env
+.venv
+env/
+venv/
+.DS_Store
+
+# Model and Output Files
+outputs/
+finetuned_model/
+*.ckpt

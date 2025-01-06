@@ -1,5 +1,6 @@
-torch
-transformers
-datasets
-trl
-unsloth
+torch==2.1.0
+transformers>=4.46.0
+datasets>=2.13.0
+trl>=0.13.0
+unsloth>=0.1.0
+ipywidgets>=7.0

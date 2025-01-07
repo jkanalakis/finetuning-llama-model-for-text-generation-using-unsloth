@@ -26,8 +26,13 @@ model = FastLanguageModel.get_peft_model(
 # Prepare the tokenizer with a chat template
 tokenizer = get_chat_template(tokenizer, chat_template="llama-3.1")
 
-# Load and preprocess the dataset
-dataset = load_dataset("mlabonne/FineTome-100k", split="train")
+# Load the dataset from the local JSON file
+dataset = load_dataset(
+    "json",
+    data_files={"train": "../data/sample_dataset.json"},  # Path to your JSON file
+)
+
+# Standardize the dataset using ShareGPT format and prepare input text using templates
 dataset = standardize_sharegpt(dataset)
 dataset = dataset.map(
     lambda examples: {

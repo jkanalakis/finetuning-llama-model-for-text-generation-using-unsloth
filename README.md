@@ -1,179 +1,143 @@
 # Fine-Tuning and Text Generation with `unsloth/Llama-3.2-3B-Instruct`
 
-This project demonstrates how to fine-tune a pre-trained language model named `unsloth/Llama-3.2-3B-Instruct` using the Hugging Face `transformers`, `trl`, and `datasets` libraries. The notebook walks through all steps, from installing dependencies to fine-tuning the model and performing text generation. Below, are detailed instructions and explanations of each step.
 
-## Table of Contents
+This project demonstrates how to fine-tune a pre-trained language model named unsloth/Llama-3.2-3B-Instruct using the Hugging Face transformers, trl, and datasets libraries. The notebook walks through all steps, from installing dependencies to fine-tuning the model and performing text generation. Below, are detailed instructions and explanations of each step.
 
-1. [Overview](#overview)
-2. [Features](#features)
-3. [Prerequisites](#prerequisites)
-4. [Setup](#setup)
-5. [Steps](#steps)
-   - [1. Install Required Libraries](#1-install-required-libraries)
-   - [2. Import Dependencies](#2-import-dependencies)
-   - [3. Load Pre-Trained Model](#3-load-pre-trained-model)
-   - [4. Apply Parameter-Efficient Fine-Tuning (PEFT)](#4-apply-parameter-efficient-fine-tuning-peft)
-   - [5. Prepare Dataset and Tokenizer](#5-prepare-dataset-and-tokenizer)
-   - [6. Configure the Fine-Tuning Trainer](#6-configure-the-fine-tuning-trainer)
-   - [7. Train and Save the Model](#7-train-and-save-the-model)
-   - [8. Reload Fine-Tuned Model](#8-reload-fine-tuned-model)
-   - [9. Optimize Model for Inference](#9-optimize-model-for-inference)
-   - [10. Generate Text](#10-generate-text)
-6. [Results](#results)
-7. [Customization](#customization)
-8. [Contributing](#contributing)
-9. [License](#license)
+## 1. Create and Access the DigitalOcean Droplet
+1.	Log in to your DigitalOcean account.
+2.	Create an H100 GPU droplet using the AI/ML-ready image (Ubuntu 22.04).
+3.	Note the public IP address of the droplet.
+4.	SSH into the droplet:
 
-## Overview
+	`ssh root@<DROPLET_IP>`
 
-This notebook showcases the following:
-- Fine-tuning a pre-trained language model for a specific dataset.
-- Preparing datasets with conversational templates for instruction tuning.
-- Using Parameter-Efficient Fine-Tuning (PEFT) to optimize resource usage.
-- Saving, loading, and deploying a fine-tuned model for text generation.
+## 2. Update System and Install Essential Tools
+1.	Update the package manager:
 
-## Features
+	`apt update && apt upgrade -y`
 
-- **PEFT Fine-Tuning:** Enables resource-efficient training by updating only a subset of model parameters.
-- **Custom Dataset Preparation:** Prepares conversational data using ShareGPT templates.
-- **Text Generation:** Demonstrates model inference with advanced sampling techniques like top-p sampling and temperature control.
-- **Modular Approach:** Code is modular and easily customizable.
+2.	Install essential tools:
 
-## Prerequisites
+	`apt install -y python3 python3-venv python3-pip git docker.io`
 
-- Python 3.8 or later
-- GPU with CUDA support (recommended for faster training and inference)
-- Required Python libraries (see [Setup](#setup))
+## 3. Set Up a Python Virtual Environment
+1.	Create a virtual environment:
 
-## Setup
+	`python3 -m venv venv`
 
-1. Clone this repository or download the notebook.
-2. Install the required Python libraries by running the following commands in your terminal:
+2.	Activate the virtual environment:
 
-   ```bash
-   pip install unsloth torch transformers datasets trl
-   ```
+	`source venv/bin/activate`
 
-3. Ensure your system has sufficient memory and GPU resources to handle the model.
+## 4. Clone the GitHub Repository
 
-## Steps
+1.	Clone the repository:
 
-### 1. Install Required Libraries
-This step installs the necessary Python libraries:
+	`git clone https://github.com/jkanalakis/finetuning-llama-model-for-text-generation-using-unsloth.git`
 
-```python
-!pip install unsloth
-!pip install torch
-!pip install transformers
-!pip install datasets
-!pip install trl
-```
+	`cd finetuning-llama-model-for-text-generation-using-unsloth`
 
-### 2. Import Dependencies
-Import essential modules for model handling, dataset preparation, and fine-tuning.
+## 5. Install Dependencies
 
-```python
-import torch
-from unsloth import FastLanguageModel
-from datasets import load_dataset
-from trl import SFTTrainer
-from transformers import TrainingArguments
-from unsloth.chat_templates import get_chat_template, standardize_sharegpt
-```
+1. Upgrade pip:
 
-### 3. Load Pre-Trained Model
-Load the `unsloth/Llama-3.2-3B-Instruct` model with 4-bit precision for efficient memory usage.
+	`pip install --upgrade pip`
 
-```python
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="unsloth/Llama-3.2-3B-Instruct",
-    max_seq_length=2048,
-    load_in_4bit=True
-)
-```
+2.	Install dependencies:
 
-### 4. Apply Parameter-Efficient Fine-Tuning (PEFT)
-Enable PEFT by configuring specific model layers for fine-tuning.
+	`pip install -r requirements.txt`
 
-```python
-model = FastLanguageModel.get_peft_model(
-    model,
-    r=16,
-    target_modules=[
-        "q_proj", "k_proj", "v_proj", "o_proj",
-        "gate_proj", "up_proj", "down_proj"
-    ]
-)
-```
+3.	Install Jupyter Notebook:
 
-### 5. Prepare Dataset and Tokenizer
-Load a dataset, format it with chat templates, and tokenize it.
+	`pip install notebook`
 
-```python
-tokenizer = get_chat_template(tokenizer, chat_template="llama-3.1")
-dataset = load_dataset("mlabonne/FineTome-100k", split="train")
-dataset = standardize_sharegpt(dataset)
-dataset = dataset.map(
-    lambda examples: {
-        "text": [
-            tokenizer.apply_chat_template(convo, tokenize=False)
-            for convo in examples["conversations"]
-        ]
-    },
-    batched=True
-)
-```
+## 6. Run Jupyter Notebook on the Droplet
 
-### 6. Configure the Fine-Tuning Trainer
-Initialize the trainer with the model, dataset, and training arguments.
+1.	Start the Jupyter Notebook server:
 
-```python
-trainer = SFTTrainer(
-    model=model,
-    train_dataset=dataset,
-    dataset_text_field="text",
-    max_seq_length=2048,
-    args=TrainingArguments(
-        per_device_train_batch_size=2,
-        gradient_accumulation_steps=4,
-        warmup_steps=5,
-        max_steps=60,
-        learning_rate=2e-4,
-        fp16=not torch.cuda.is_bf16_supported(),
-        bf16=torch.cuda.is_bf16_supported(),
-        logging_steps=1,
-        output_dir="outputs"
-    )
-)
-```
+	`jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root`
 
-### 7. Train and Save the Model
-Fine-tune the model and save it for later use.
+2.	Copy the token URL from the terminal output (e.g., http://127.0.0.1:8888/?token=...).
 
-```python
-trainer.train()
-model.save_pretrained("finetuned_model")
-```
+## 7. Set Up HTTP Tunneling on Your MacBook
 
-### 8. Reload Fine-Tuned Model
-Reload the fine-tuned model for inference.
+1.	Open a new terminal on your MacBook.
 
-```python
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="finetuned_model",
-    max_seq_length=2048,
-    load_in_4bit=True
-)
-```
+2.	Create an SSH tunnel (*need to connect over port 8889 when the server already uses 8888*):
 
-### 9. Optimize Model for Inference
-Enable faster inference with model optimizations.
+	`ssh -L 8889:localhost:8888 root@<DROPLET_IP>`
 
-```python
-FastLanguageModel.for_inference(model)
-```
+3.	Access Jupyter Notebook by opening the following URL in your browser:
 
-### 10. Generate Text
+	`http://127.0.0.1:8889`
+
+## 8. Test the Jupyter Notebook
+
+1.	Open the Jupyter Notebook file (.ipynb) in the Jupyter interface.
+
+2.	Run the cells step-by-step to fine-tune the model and generate outputs.
+
+## 9. Download the Fine-Tuned Model
+
+1.	Compress the fine-tuned model directory:
+
+	`tar -czvf finetuned_model.tar.gz finetuned_model`
+
+2.	Download the compressed file to your MacBook:
+
+	```scp root@<DROPLET_IP>:~/finetuning-llama-model-for-text-generation-using-unsloth/finetuned_model.tar.gz ./```
+
+## 10. Save the Python Environment as a Docker Image
+
+1.	Create a file named **Dockerfile** in the repository directory:
+
+	```
+	FROM python:3.10-slim
+	WORKDIR /app
+
+	COPY requirements.txt ./
+	RUN pip install --no-cache-dir -r requirements.txt
+
+	COPY . ./
+
+	CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]
+
+	```
+
+2.	Build the Docker image:
+
+	`docker build -t fine-tuning-env .`
+
+3.	Save the Docker image to a file:
+
+	`docker save fine-tuning-env > fine-tuning-env.tar`
+
+4.	Download the Docker image to your MacBook:
+
+	`scp root@<DROPLET_IP>:~/finetuning-llama-model-for-text-generation-using-unsloth/fine-tuning-env.tar ./`
+
+## 11. Shut Down the Python Virtual Environment
+
+1.	Deactivate the virtual environment:
+
+	`deactivate`
+
+2.	Stop the Jupyter Notebook server (Ctrl+C in the terminal running it).
+
+## 12. Optional: Shut Down the Droplet
+
+1.	To avoid additional costs, power off or destroy the droplet:
+
+	`shutdown now`
+
+### Notes
+•	Replace <DROPLET_IP> with the public IP address of your droplet.
+•	Ensure you have appropriate permissions to use Docker on your MacBook for reusing the environment.
+
+This guide provides a repeatable workflow for configuring, fine-tuning, and saving your environment efficiently.
+
+
+### Generate Text
 Perform text generation using the fine-tuned model.
 
 ```python
